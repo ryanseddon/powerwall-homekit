@@ -9,9 +9,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/brutella/hc/accessory"
-	"github.com/brutella/hc/characteristic"
-	"github.com/brutella/hc/service"
+	"github.com/brutella/hap/accessory"
+	"github.com/brutella/hap/characteristic"
+	"github.com/brutella/hap/service"
 )
 
 var httpClient *http.Client
@@ -29,7 +29,7 @@ func init() {
 }
 
 type Powerwall struct {
-	*accessory.Accessory
+	*accessory.A
 
 	battery *service.BatteryService
 	ip      net.IP
@@ -46,18 +46,24 @@ func NewPowerwall(ip net.IP) *Powerwall {
 	}
 
 	pw := &Powerwall{ip: ip}
-	pw.Accessory = accessory.New(info, accessory.TypeOther)
+	pw.A = accessory.New(info, accessory.TypeOther)
 	pw.battery = service.NewBatteryService()
-	pw.AddService(pw.battery.Service)
+	pw.AddS(pw.battery.S)
 
 	pw.battery.BatteryLevel.SetValue(pw.getChargePercentage())
-	pw.battery.BatteryLevel.OnValueRemoteGet(pw.getChargePercentage)
+	pw.battery.BatteryLevel.OnValueRemoteUpdate(func(v int) {
+		pw.getChargePercentage()
+	})
 
 	pw.battery.ChargingState.SetValue(pw.getChargingState())
-	pw.battery.ChargingState.OnValueRemoteGet(pw.getChargingState)
+	pw.battery.ChargingState.OnValueRemoteUpdate(func(v int) {
+		pw.getChargingState()
+	})
 
 	pw.battery.StatusLowBattery.SetValue(pw.getLowBatteryStatus())
-	pw.battery.StatusLowBattery.OnValueRemoteGet(pw.getLowBatteryStatus)
+	pw.battery.StatusLowBattery.OnValueRemoteUpdate(func(v int) {
+		pw.getLowBatteryStatus()
+	})
 
 	return pw
 }
@@ -115,7 +121,7 @@ func (pw *Powerwall) getChargingState() int {
 		return -1
 	}
 
-	charge := pw.battery.BatteryLevel.GetValue()
+	charge := pw.battery.BatteryLevel.Value()
 
 	if charge == 100 {
 		// battery is fully charged
@@ -130,7 +136,7 @@ func (pw *Powerwall) getChargingState() int {
 }
 
 func (pw *Powerwall) getLowBatteryStatus() int {
-	charge := pw.battery.BatteryLevel.GetValue()
+	charge := pw.battery.BatteryLevel.Value()
 
 	if charge <= 5 {
 		return characteristic.StatusLowBatteryBatteryLevelLow

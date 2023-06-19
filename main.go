@@ -1,17 +1,20 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"log"
 	"net"
 	"os"
+	"os/signal"
+	"syscall"
 
-	"github.com/brutella/hc/accessory"
+	"github.com/brutella/hap/accessory"
 
-	"github.com/brianmario/powerwall-homekit/grid"
-	"github.com/brianmario/powerwall-homekit/powerwall"
-	"github.com/brutella/hc"
+	"github.com/ryanseddon/powerwall-homekit/grid"
+	"github.com/ryanseddon/powerwall-homekit/powerwall"
+	"github.com/brutella/hap"
 )
 
 var powerwallIP, pinCode string
@@ -43,17 +46,31 @@ func main() {
 
 	sensor := grid.NewSensor(ip)
 
-	pwConfig := hc.Config{Pin: pinCode}
+	// pwConfig := hap.Config{Pin: pinCode}
+	pwStore := hap.NewMemStore()
+	pwStore.Set("Pin", []byte(pinCode))
 
 	// NOTE: the first accessory in the list acts as the bridge, while the rest will be linked to it
-	t, err := hc.NewIPTransport(pwConfig, bridge.Accessory, pw.Accessory, sensor.Accessory)
+	t, err := hap.NewServer(pwStore, bridge.A, pw.A, sensor.A)
 	if err != nil {
 		log.Panic(err)
 	}
 
-	hc.OnTermination(func() {
-		<-t.Stop()
-	})
+	// Setup a listener for interrupts and SIGTERM signals
+	// to stop the server.
+	c := make(chan os.Signal)
+	signal.Notify(c, os.Interrupt)
+	signal.Notify(c, syscall.SIGTERM)
 
-	t.Start()
+	ctx, cancel := context.WithCancel(context.Background())
+	go func() {
+		<-c
+		// Stop delivering signals.
+		signal.Stop(c)
+		// Cancel the context to stop the server.
+		cancel()
+	}()
+
+	// Run the server.
+	t.ListenAndServe(ctx)
 }

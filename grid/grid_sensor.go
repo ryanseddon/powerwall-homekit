@@ -8,9 +8,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/brutella/hc/accessory"
-	"github.com/brutella/hc/characteristic"
-	"github.com/brutella/hc/service"
+	"github.com/brutella/hap/accessory"
+	"github.com/brutella/hap/characteristic"
+	"github.com/brutella/hap/service"
 )
 
 var httpClient *http.Client
@@ -28,7 +28,7 @@ func init() {
 }
 
 type Sensor struct {
-	*accessory.Accessory
+	*accessory.A
 
 	sensor *service.ContactSensor
 
@@ -39,12 +39,14 @@ func NewSensor(ip net.IP) *Sensor {
 	info := accessory.Info{Name: "Grid Power"}
 
 	s := &Sensor{ip: ip}
-	s.Accessory = accessory.New(info, accessory.TypeSensor)
+	s.A = accessory.New(info, accessory.TypeSensor)
 	s.sensor = service.NewContactSensor()
-	s.AddService(s.sensor.Service)
+	s.AddS(s.sensor.S)
 
 	s.sensor.ContactSensorState.SetValue(s.getSensorState())
-	s.sensor.ContactSensorState.OnValueRemoteGet(s.getSensorState)
+	s.sensor.ContactSensorState.OnValueRemoteUpdate(func(v int) {
+		s.getSensorState()
+	})
 
 	return s
 }
